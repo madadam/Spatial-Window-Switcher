@@ -1,0 +1,146 @@
+#! /usr/bin/ruby
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Adam Cigánek <adam.ciganek@gmail.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+WMCTRL = 'wmctrl'
+XPROP  = 'xprop'
+
+WM_CLASS_BLACKLIST = ['N/A', /^desktop_window/]
+
+class Window
+  def initialize(attributes)
+    @id     = attributes[:id].to_i(16)
+    @x      = attributes[:x].to_i
+    @y      = attributes[:y].to_i
+    @width  = attributes[:width].to_i
+    @height = attributes[:height].to_i
+    @title  = attributes[:title]
+  end
+
+  attr_reader :id
+  attr_reader :x, :y
+  attr_reader :width, :height
+  attr_reader :title
+
+  def center_x
+    x + width / 2
+  end
+
+  def center_y
+    y + height / 2
+  end
+
+  def == (other)
+    id == other.id
+  end
+
+  def activate
+    `#{WMCTRL} -i -a #{id}`
+  end
+
+  def inspect
+    "#<Window:0x#{id.to_s(16)} #{x},#{y}@#{width}x#{height} \"#{title}\">"
+  end
+
+  def to_s
+    inspect
+  end
+
+  class << self
+    def all
+      @all ||= parse_list(`#{WMCTRL} -lGx`).map { |attrs| new(attrs) }
+    end
+
+    def by_id(id)
+      all.find { |window| window.id == id }
+    end
+
+    def active
+      by_id(active_id)
+    end
+
+    private
+
+    def parse_list(source)
+      source.split("\n").map do |line|
+        id, desktop, x, y, width, height, wm_class, _, *title = line.split
+
+        if blacklist?(wm_class)
+          nil
+        else
+          {
+            id:     id,
+            x:      x,
+            y:      y,
+            width:  width,
+            height: height,
+            title:  title.join(' ')
+          }
+        end
+      end.compact
+    end
+
+    def blacklist?(wm_class)
+      WM_CLASS_BLACKLIST.any? do |pattern|
+        if pattern.is_a?(Regexp)
+          pattern =~ wm_class
+        else
+          pattern == wm_class
+        end
+      end
+    end
+
+    def active_id
+      source = `#{XPROP} -root _NET_ACTIVE_WINDOW`
+      source.split[4].to_i(16)
+    end
+  end
+end
+
+def adjacent_window(windows, current, property, offset)
+  sorted        = windows.sort_by(&property)
+  current_index = sorted.index(current)
+  next_index    = current_index && current_index + offset
+
+  if next_index >= 0 && next_index < sorted.size
+    sorted[next_index]
+  else
+    nil
+  end
+end
+
+def switch_window(property, offset)
+  window = adjacent_window(Window.all, Window.active, property, offset)
+  window && window.activate
+end
+
+command = ARGV[0]
+
+case command
+when 'right' then switch_window(:center_x,  1)
+when 'left'  then switch_window(:center_x, -1)
+when 'above' then switch_window(:center_y, -1)
+when 'below' then switch_window(:center_y,  1)
+else
+  puts 'Usage: sws left|right|above|below'
+end
