@@ -18,9 +18,9 @@ desktop environment:
 | Action                            | Command     |
 |-----------------------------------|-------------|
 | Switch to the window to the right | `sws right` |
-| Switch to the window to the left  | `sws right` |
-| Switch to the window above        | `sws right` |
-| Switch to the window below        | `sws right` |
+| Switch to the window to the left  | `sws left`  |
+| Switch to the window above        | `sws above` |
+| Switch to the window below        | `sws below` |
 
 For example, in Ubuntu, open up the Keyboard settings, switch to the Shortcuts
 tab, go to Custom Shortcuts. Then Click the `+` button on the bottom and add
